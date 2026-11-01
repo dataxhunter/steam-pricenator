@@ -27,7 +27,7 @@ with row0_2:
     st.space(1)
 
 row0_2.subheader(
-    "A Streamlit web app by [Data x Hunter](https://github.com/dataxhunter) Follow to see more content"
+    "A Streamlit web app by [Data x Hunter](https://github.com/dataxhunter), follow for more content"
 )
 
 row1_spacer1, row1_1, row1_spacer2 = st.columns((0.1, 3.2, 0.1))
@@ -45,6 +45,9 @@ with row1_1:
     st.markdown(
         "**Alert**: since the database csv is a little bit large and we can't afford the network costs, we will use a fixed .csv file you will need to download at *fronkongames* Kaggle profile: [Kaggle URL](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset?select=games.json)."
     )
+    set.markdown(
+        "**Alert**: the raw games.csv file from *fronkongames* on Kaggle has a known header bug: the header row declares 39 columns because a comma is missing between Discount and DLC count (DiscountDLC count), while every data row has 40 values."
+    )
 
 row1_spacer1, row1_1, row1_spacer2 = st.columns((0.1, 3.2, 0.1))
 with row1_1:
@@ -56,7 +59,11 @@ row2_spacer1, row2_1, row2_spacer2 = st.columns((0.1, 3.2, 0.1))
 with row2_1:
     uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
 
+@st.cache_data
+def read_uploaded_csv(uploaded_file):
+    return pd.read_csv(uploaded_file)
+    
 if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
+    df = read_uploaded_csv(uploaded_file)
     st.write("### Dataset Preview:")
-    st.dataframe(df)
+    st.dataframe(df.head(100))
