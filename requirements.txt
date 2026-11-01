@@ -1,3 +1,9 @@
-streamlit>=1.26.0
+streamlit
 pandas
 numpy
+matplotlib
+urllib3
+seaborn
+streamlit-lottie
+plotly
+streamlit-extras
