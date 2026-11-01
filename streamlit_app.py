@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import plotly.express as px
 import requests
-from streamlit_extras.add_vertical_space import add_vertical_space
 from streamlit_lottie import st_lottie
 
 st.set_page_config(page_title="Steam Pricenator", layout="wide")
