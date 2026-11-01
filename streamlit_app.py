@@ -24,10 +24,10 @@ row0_spacer1, row0_1, row0_spacer2, row0_2, row0_spacer3 = st.columns(
 row0_1.title("Steam Pricenator")
 
 with row0_2:
-    add_vertical_space()
+    st.space(1)
 
 row0_2.subheader(
-    "A Streamlit web app by [Wendel Simões](https://github.com/wendelsimoes) Follow to see more amazing content"
+    "A Streamlit web app by [Data x Hunter](https://github.com/dataxhunter) Follow to see more content"
 )
 
 row1_spacer1, row1_1, row1_spacer2 = st.columns((0.1, 3.2, 0.1))
@@ -37,15 +37,26 @@ with row1_1:
         "Hey there! Welcome to the Steam Pricenator, an expert program that helps game publishers decide the ideal price for a new title on Steam. Based on features like genre, categories, tags and other features, the final project uses a basic algorithm named Decision Tree to predict the price."
     )
     st.markdown(
-        "To get there, we explored the “Steam Games Dataset” maintained by *fronkongames* on Kaggle (MIT license, around 300 MB, updated weekly on Steam API). It gathers information on nearly 150,000 games across 39 columns, available as CSV and JSON."
+        "To get there, we explored the “Steam Games Dataset” maintained by *fronkongames* on Kaggle (MIT license, around 400 MB, updated weekly on Steam API). It gathers information on nearly 150,000 games across 39 columns, available as CSV and JSON."
     )
     st.markdown(
         "**Tip**: if you’re on mobile, switch to landscape mode for easier viewing of the graphs. Give it a go!"
     )
     st.markdown(
-        "**Alert**: since the database csv is a little bit large and we can't afford the network costs, we will use a fixed .csv file from a late update by *fronkongames*."
-    )
-    st.markdown(
-        "**Last archive date**: Oct. 12, 2026"
+        "**Alert**: since the database csv is a little bit large and we can't afford the network costs, we will use a fixed .csv file you will need to download at *fronkongames* Kaggle profile: [Kaggle URL](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset?select=games.json)."
     )
 
+row1_spacer1, row1_1, row1_spacer2 = st.columns((0.1, 3.2, 0.1))
+with row1_1:
+    st.markdown(
+        "**To begin please upload the .csv Kaggle dataset file from [fronkongames](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset?select=games.json)**"
+    )
+
+row2_spacer1, row2_1, row2_spacer2 = st.columns((0.1, 3.2, 0.1))
+with row2_1:
+    uploaded_file = st.file_uploader("Choose a CSV file", type=["csv"])
+
+if uploaded_file is not None:
+    df = pd.read_csv(uploaded_file)
+    st.write("### Dataset Preview:")
+    st.dataframe(df)
