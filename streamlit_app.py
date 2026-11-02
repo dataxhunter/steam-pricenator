@@ -59,8 +59,7 @@ def load_and_clean_steam_csv(uploaded_file):
     )
     df["Release year"] = df["Release date"].dt.year
 
-    # Change 2012 to 1997 here if you want 1997-2011 included in your dataset
-    df = df[df["Release year"] >= 2012]
+    df = df[df["Release year"] >= 1997]
     df = df.dropna(subset=["Genres", "Categories"])
     df = df[df["Price"] > 0.0].copy()
 
@@ -73,6 +72,19 @@ def load_and_clean_steam_csv(uploaded_file):
             df["Price"],
         )
         df = df.drop(columns=["Discount"])
+
+    # Show only prices between $1 and $500
+    df = df[(df['Price'] >= 1.0) & (df['Price'] <= 500.0)]
+
+    # Transform estimated owners to mean value
+    valid_estimated_owners = df["Estimated owners"].str.split(" - ", expand=True)
+    df["Estimated Owners"] = np.where(
+        valid_estimated_owners.notnull().all(axis=1),
+        valid_estimated_owners.astype(float).mean(axis=1),
+        np.nan
+    )
+
+    df['weight'] = np.log1p(df['Estimated Owners'])
 
     return df
 
@@ -112,6 +124,15 @@ with row1_1:
         "**Alert**: since the database csv is a little bit large and we can't afford the network costs, we will use a fixed .csv file you will need to download at *fronkongames* Kaggle profile: [Kaggle URL](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset?select=games.csv)."
     )
     st.markdown(
+        "**Info**: Both the general metrics and Steam Pricenator prediction model used a **weight** based calculation where games/apps with higher estimated owners influenced more on the result."
+    )
+    st.markdown(
+        "Here is basic formula:"
+    )
+    st.latex(r'''
+    weight = \ln(1 + x) \text{ where x  is the estimated owners count}
+    ''')
+    st.markdown(
         "**To begin please upload the .csv Kaggle dataset file from [fronkongames](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset?select=games.csv)**"
     )
 
@@ -134,13 +155,11 @@ line1_spacer1, line1_1, line1_spacer2 = st.columns((0.1, 3.2, 0.1))
 with line1_1:
     st.header("General Metrics")
 
-row3_space1, row3_1, row3_space2, row3_2, row3_space3 = st.columns(
-    (0.1, 1, 0.1, 1, 0.1)
+row3_space1, row3_1, row3_space2 = st.columns(
+    (0.1, 1, 0.1)
 )
 
 with row3_1:
-    st.subheader("Average Price per Year")
-
     price_by_year = df.groupby("Release year")["Price"].mean().reset_index()
     price_by_year = price_by_year[
         (price_by_year["Release year"] >= 1997)
@@ -152,8 +171,8 @@ with row3_1:
         price_by_year,
         x="Release year",
         y="Price",
-        title="Média de Preço dos Jogos por Ano de Lançamento",
-        labels={"Release year": "Ano de Lançamento", "Price": "Preço Médio ($)"},
+        title="Average Price of Paid Games by Release Year",
+        labels={"Release year": "Release Year", "Price": "Average Price ($)"},
         color_discrete_sequence=["#9EE6CF"],
         text_auto=".2f",
     )
@@ -165,7 +184,7 @@ with row3_1:
         hovermode="x unified",
     )
     fig.update_traces(
-        hovertemplate="<b>Ano:</b> %{x}<br><b>Preço Médio:</b> $%{y:.2f}<extra></extra>"
+        hovertemplate="<b>Year:</b> %{x}<br><b>Average Price:</b> $%{y:.2f}<extra></extra>"
     )
 
     st.plotly_chart(fig, theme="streamlit", use_container_width=True)
@@ -176,6 +195,71 @@ with row3_1:
 
     st.markdown(
         f"After cleaning, we are analyzing a total of **{total_games:,} paid games** "
-        f"with an overall average price of **${overall_avg_price:.2f}**, with **{int(peak_row['Release year'])}** "
-        f"recording the highest average price (**${peak_row['Price']:.2f}**)."
+        f"with an overall average price of **\${overall_avg_price:.2f}**, with **{int(peak_row['Release year'])}** being the year"
+        f"recording the highest average price (**\${peak_row['Price']:.2f}**)."
     )
+
+row4_space1, row4_1, row4_space2 = st.columns(
+    (0.1, 1, 0.1)
+)
+
+with row4_1:
+    df_genres_exploded = df.copy()
+    df_genres_exploded['Genres'] = df_genres_exploded['Genres'].str.split(',')
+    df_genres_exploded = df_genres_exploded.explode('Genres')
+
+    genre_avg_price = df_genres_exploded.groupby('Genres')['Price'].mean().reset_index()
+
+    genre_avg_price = genre_avg_price.sort_values(by='Price', ascending=False)
+
+    fig = px.bar(
+        genre_avg_price,
+        x="Price",
+        y="Genres",
+        title="Average Price of Paid Games by Genre",
+        labels={"Genre": "Genre", "Average Price ($)": "Average Price ($)"},
+        color_discrete_sequence=["#9EE6CF"],
+        text_auto=".2f",
+        orientation='h',
+    )
+
+    fig.update_traces(
+        hovertemplate="<b>Average Price:</b> $%{x:.2f}<br><b>Genre:</b> %{y}<extra></extra>"
+    )
+
+    fig.update_xaxes(automargin=True)
+
+    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+
+row5_space1, row5_1, row5_space2 = st.columns(
+    (0.1, 1, 0.1)
+)
+
+with row5_1:
+    df_categories_exploded = df.copy()
+    df_categories_exploded['Categories'] = df_categories_exploded['Categories'].str.split(',')
+    df_categories_exploded = df_categories_exploded.explode('Categories')
+
+    category_avg_price = df_categories_exploded.groupby('Categories')['Price'].mean().reset_index()
+
+    category_avg_price = category_avg_price.sort_values(by='Price', ascending=False)
+
+    fig = px.bar(
+        category_avg_price,
+        x="Price",
+        y="Categories",
+        title="Average Price of Paid Games by Category",
+        labels={"Category": "Category", "Average Price ($)": "Average Price ($)"},
+        color_discrete_sequence=["#9EE6CF"],
+        text_auto=".2f",
+        orientation='h',
+        height=700
+    )
+
+    fig.update_traces(
+        hovertemplate="<b>Average Price:</b> $%{x:.2f}<br><b>Category:</b> %{y}<extra></extra>"
+    )
+
+    fig.update_xaxes(automargin=True)
+
+    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
