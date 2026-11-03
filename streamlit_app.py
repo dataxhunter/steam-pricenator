@@ -6,9 +6,10 @@ import pandas as pd
 import plotly.express as px
 import requests
 from streamlit_lottie import st_lottie
+import datetime
+import joblib
 
 st.set_page_config(page_title="Steam Pricenator", layout="wide")
-
 
 @st.cache_data
 def load_lottieurl(url: str):
@@ -20,6 +21,54 @@ def load_lottieurl(url: str):
     except requests.RequestException:
         return None
 
+@st.cache_resource
+def load_prediction_bundle(path="steam_pricenator_model.joblib"):
+    return joblib.load(path)
+
+bundle = load_prediction_bundle()
+
+def prever_preco_jogo(
+    bundle_data,
+    release_date_val,
+    required_age,
+    full_audio_languages_count,
+    platforms_count,
+    selected_categories,
+    selected_genres,
+    selected_tags,
+):
+    model_columns = bundle_data["feature_columns"]
+    min_date = bundle_data["min_date"]
+    model = bundle_data["model"]
+
+    input_data = {col: [0] for col in model_columns}
+
+    input_data["Required age"] = [required_age]
+    input_data["Full audio languages"] = [full_audio_languages_count]
+    input_data["Platforms count"] = [platforms_count]
+
+    date_to_days = pd.to_datetime(release_date_val)
+    days_since_min = (date_to_days - min_date).days
+    input_data["Days_since_release"] = [days_since_min]
+
+    for item in selected_categories:
+        col_name = f"Categories_{item}"
+        if col_name in input_data:
+            input_data[col_name] = [1]
+
+    for item in selected_genres:
+        col_name = f"Genres_{item}"
+        if col_name in input_data:
+            input_data[col_name] = [1]
+
+    for item in selected_tags:
+        col_name = f"Tags_{item}"
+        if col_name in input_data:
+            input_data[col_name] = [1]
+
+    df_input = pd.DataFrame(input_data)[model_columns]
+    estimated_price = model.predict(df_input)[0]
+    return round(float(estimated_price), 2)
 
 def count_languages(val):
     if pd.isna(val) or not isinstance(val, str):
@@ -124,7 +173,7 @@ with row1_1:
         "**Alert**: since the database csv is a little bit large and we can't afford the network costs, we will use a fixed .csv file you will need to download at *fronkongames* Kaggle profile: [Kaggle URL](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset?select=games.csv)."
     )
     st.markdown(
-        "**Info**: Both the general metrics and Steam Pricenator prediction model used a **weight** based calculation where games/apps with higher estimated owners influenced more on the result."
+        "**Info**: Both the  Steam Pricenator prediction model and the general metrics used a **weight** based calculation where games/apps with higher estimated owners influenced more on the result."
     )
     st.markdown(
         "Here is basic formula:"
@@ -132,9 +181,99 @@ with row1_1:
     st.latex(r'''
     weight = \ln(1 + x) \text{ where x  is the estimated owners count}
     ''')
-    st.markdown(
-        "**To begin please upload the .csv Kaggle dataset file from [fronkongames](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset?select=games.csv)**"
+
+# STEAM PREDICTOR CODE
+st.header("🎮 Steam Game Price Predictor (Pricenator)")
+st.markdown(
+    "Fill in the characteristics of your upcoming game below to estimate its optimal launch price on Steam."
+)
+
+with st.form("price_prediction_form"):
+    col1, col2 = st.columns(2)
+
+    with col1:
+        release_date_input = st.date_input(
+            "Planned Release Date", value=datetime.date(2025, 6, 1)
+        )
+        required_age_input = st.selectbox(
+            "Required Age (Age Rating)",
+            options=[0, 3, 7, 10, 12, 13, 16, 17, 18],
+            index=4,  # Padrão: 12 anos
+            help="Select 0 if the game is suitable for all ages.",
+        )
+        audio_langs_input = st.number_input(
+            "Number of Full Audio Languages",
+            min_value=0,
+            max_value=50,
+            value=2,
+            step=1,
+        )
+        platforms_selected = st.multiselect(
+            "Supported Platforms",
+            options=["Windows", "Mac", "Linux"],
+            default=["Windows", "Mac", "Linux"],
+        )
+
+    with col2:
+        categories_input = st.multiselect(
+            "Categories",
+            options=bundle["categories_options"],
+            default=[
+                c
+                for c in [
+                    "Single-player",
+                    "Multi-player",
+                    "Steam Achievements",
+                    "Steam Cloud",
+                ]
+                if c in bundle["categories_options"]
+            ],
+        )
+        genres_input = st.multiselect(
+            "Genres",
+            options=bundle["genres_options"],
+            default=[
+                g
+                for g in ["Action", "Adventure", "RPG"]
+                if g in bundle["genres_options"]
+            ],
+        )
+        tags_input = st.multiselect(
+            "Tags",
+            options=bundle["tags_options"],
+            default=[
+                t
+                for t in ["RPG", "Open World", "Action", "Adventure"]
+                if t in bundle["tags_options"]
+            ],
+        )
+
+    submit_btn = st.form_submit_button("Predict Optimal Price 💰")
+
+if submit_btn:
+    platforms_count_val = max(1, len(platforms_selected))
+
+    predicted_price = prever_preco_jogo(
+        bundle_data=bundle,
+        release_date_val=release_date_input,
+        required_age=required_age_input,
+        full_audio_languages_count=audio_langs_input,
+        platforms_count=platforms_count_val,
+        selected_categories=categories_input,
+        selected_genres=genres_input,
+        selected_tags=tags_input,
     )
+
+    st.success(f"### Estimated Ideal Steam Price: **${predicted_price:.2f}**")
+    st.caption(
+        f"Model Evaluation Metrics — R²: {bundle['metrics']['r2']:.3f} | "
+        f"MSE: {bundle['metrics']['mse']:.2f}"
+    )
+
+# BELLOW ARE THE GENERAL METRICS CODE
+st.markdown(
+    "**To see the current dataset general metrics please upload the .csv Kaggle dataset file from [fronkongames](https://www.kaggle.com/datasets/fronkongames/steam-games-dataset?select=games.csv)**"
+)
 
 row2_spacer1, row2_1, row2_spacer2 = st.columns((0.1, 3.2, 0.1))
 with row2_1:
@@ -217,7 +356,7 @@ with row4_1:
         x="Price",
         y="Genres",
         title="Average Price of Paid Games by Genre",
-        labels={"Genre": "Genre", "Average Price ($)": "Average Price ($)"},
+        labels={"Genres": "Genre", "Price": "Average Price ($)"},
         color_discrete_sequence=["#9EE6CF"],
         text_auto=".2f",
         orientation='h',
@@ -249,7 +388,7 @@ with row5_1:
         x="Price",
         y="Categories",
         title="Average Price of Paid Games by Category",
-        labels={"Category": "Category", "Average Price ($)": "Average Price ($)"},
+        labels={"Categories": "Category", "Price": "Average Price ($)"},
         color_discrete_sequence=["#9EE6CF"],
         text_auto=".2f",
         orientation='h',
@@ -261,5 +400,42 @@ with row5_1:
     )
 
     fig.update_xaxes(automargin=True)
+
+    st.plotly_chart(fig, theme="streamlit", use_container_width=True)
+
+row6_space1, row6_1, row6_space2 = st.columns(
+    (0.1, 1, 0.1)
+)
+
+with row6_1:
+    # Selecting only 'Tags' and 'Price' before exploding saves significant RAM
+    df_tags_exploded = df[['Tags', 'Price']].dropna(subset=['Tags']).copy()
+    df_tags_exploded['Tags'] = df_tags_exploded['Tags'].str.split(',')
+    df_tags_exploded = df_tags_exploded.explode('Tags')
+    df_tags_exploded['Tags'] = df_tags_exploded['Tags'].str.strip()
+
+    tag_avg_price = df_tags_exploded.groupby('Tags')['Price'].mean().reset_index()
+
+    # The dataset has 440+ unique tags; .head(50) keeps the chart readable
+    tag_avg_price = tag_avg_price.sort_values(by='Price', ascending=False).head(50)
+
+    fig = px.bar(
+        tag_avg_price,
+        x="Price",
+        y="Tags",
+        title="Average Price of Paid Games by Tag (Top 50)",
+        labels={"Tags": "Tag", "Price": "Average Price ($)"},
+        color_discrete_sequence=["#9EE6CF"],
+        text_auto=".2f",
+        orientation='h',
+        height=1000
+    )
+
+    fig.update_traces(
+        hovertemplate="<b>Average Price:</b> $%{x:.2f}<br><b>Tag:</b> %{y}<extra></extra>"
+    )
+
+    fig.update_xaxes(automargin=True)
+    fig.update_yaxes(automargin=True)
 
     st.plotly_chart(fig, theme="streamlit", use_container_width=True)
